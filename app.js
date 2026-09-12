@@ -11,7 +11,7 @@ window.addEventListener('unhandledrejection', e => {
 // Mirrors the CACHE version in sw.js — bump both together on every deploy. Shown on the login
 // screen and in the sidebar so it's possible to tell at a glance whether a browser is still
 // running an old cached copy of the app instead of guessing from symptoms.
-const APP_VERSION = 'v59';
+const APP_VERSION = 'v60';
 
 // ==================== STAGING MODE ====================
 // Open the app with ?staging=1 in the address bar to point every hotelData read/write at a
@@ -1802,7 +1802,9 @@ function loadCheckOutForm(roomId, previewDiscountIQD = null) {
 
     const orderItems = guest.orders.map(order => `
         <tr>
-            <td>${order.category ? catNameByKey(order.category) + ': ' : ''}${order.name}</td>
+            <td>${order.category ? catNameByKey(order.category) + ': ' : ''}${order.name}
+                ${order.timestamp ? `<br><span style="color:#9ca3af;font-size:0.78rem;">${new Date(order.timestamp).toLocaleString(currentLang === 'ar' ? 'ar-IQ' : 'en-US')}</span>` : ''}
+            </td>
             <td>${order.quantity}</td>
             <td>IQD ${fmtIQD(order.price * order.quantity)}</td>
         </tr>
