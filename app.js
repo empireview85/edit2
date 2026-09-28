@@ -11,7 +11,7 @@ window.addEventListener('unhandledrejection', e => {
 // Mirrors the CACHE version in sw.js — bump both together on every deploy. Shown on the login
 // screen and in the sidebar so it's possible to tell at a glance whether a browser is still
 // running an old cached copy of the app instead of guessing from symptoms.
-const APP_VERSION = 'v60';
+const APP_VERSION = 'v62';
 
 // ==================== STAGING MODE ====================
 // Open the app with ?staging=1 in the address bar to point every hotelData read/write at a
@@ -4022,7 +4022,11 @@ function confirmReservation(e) {
         phone:       document.getElementById('reservePhone').value.trim(),
         arrivalDate: document.getElementById('reserveArrivalDate').value,
         priceIQD, priceUSD,
-        price:       priceUSD || priceIQD || room.price, // legacy single-currency fallback
+        // Legacy single-currency fallback for old code that only reads `price` — must NOT fall back
+        // to room.price when the admin deliberately set the reservation price to 0 (e.g. a free/comp
+        // stay), or that free price silently gets overwritten with the room's normal price the moment
+        // the guest checks in. 0 here means "the admin typed 0," not "no price was entered."
+        price:       priceUSD || priceIQD,
         depositCashIQD, depositCashUSD, depositCardIQD, depositCardUSD,
         depositIQD, depositUSD,
         paymentMethod,
@@ -4329,14 +4333,18 @@ function openCheckInFromReservation(roomId) {
     openCheckInModal(roomId);
     if (ri.guestName) document.getElementById('guestName').value = ri.guestName;
     if (ri.phone)     document.getElementById('guestPhone').value = ri.phone;
-    if (ri.priceIQD || ri.priceUSD || ri.price) {
+    // != null (not a truthy check) — a reservation deliberately priced at 0 must still pre-fill as
+    // 0, not silently fall through to whatever price openCheckInModal() already defaulted the field
+    // to (the room's normal listed price). Only a genuinely old reservation with no price info at
+    // all (fields never existed) should leave the room's default price standing.
+    if (ri.priceIQD != null || ri.priceUSD != null || ri.price != null) {
         resetPriceFields();
         if (ri.priceIQD > 0) {
             document.getElementById('basePriceIQD').value = Math.round(ri.priceIQD).toLocaleString('en-US');
             document.getElementById('basePriceUSD').value = '';
             lockOtherPriceField('basePriceIQD', 'basePriceUSD');
         } else {
-            document.getElementById('basePriceUSD').value = ri.priceUSD || ri.price;
+            document.getElementById('basePriceUSD').value = ri.priceUSD || 0;
             document.getElementById('basePriceIQD').value = '';
             lockOtherPriceField('basePriceUSD', 'basePriceIQD');
         }
@@ -7167,7 +7175,18 @@ function refreshPage(pageId) {
         case 'reports':       loadReportsPage();   break;
         case 'purchases':     loadPurchasesPage(); break;
         case 'outsideIncome': loadOutsideIncomePage(); break;
-        case 'cleanerStatus': loadCleanerPage();   break;
+        case 'cleanerStatus': {
+            // The status filter dropdown (e.g. "Checkout" only) persists across renders so a
+            // person's own filtering choice survives their own clicks — but that means a change
+            // someone ELSE just made (e.g. marking a room "Cleaning") can land while this device
+            // has an old filter still set from earlier, silently hiding the very room that just
+            // changed instead of showing it. Reset the status filter back to "All Status" only on
+            // this externally-triggered refresh path, never on the person's own interactions.
+            const statusFilterEl = document.getElementById('cleanerStatusFilter');
+            if (statusFilterEl) statusFilterEl.value = 'all';
+            loadCleanerPage();
+            break;
+        }
     }
 }
 
