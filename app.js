@@ -11,7 +11,7 @@ window.addEventListener('unhandledrejection', e => {
 // Mirrors the CACHE version in sw.js — bump both together on every deploy. Shown on the login
 // screen and in the sidebar so it's possible to tell at a glance whether a browser is still
 // running an old cached copy of the app instead of guessing from symptoms.
-const APP_VERSION = 'v62';
+const APP_VERSION = 'v65';
 
 // ==================== STAGING MODE ====================
 // Open the app with ?staging=1 in the address bar to point every hotelData read/write at a
@@ -541,7 +541,15 @@ function migrateRoomStatuses(rooms, rawStatuses) {
         // confusing "Available" card with Check-In/Reserve buttons that also lists a guest's
         // name. Since currentGuest means someone is actually there, it always wins — this runs
         // on every load/sync, so it self-heals the moment the corrupted room is seen again.
-        if (r.currentGuest) {
+        // 'cleaning' and 'checkout' are explicitly EXEMPT from this self-heal even if their
+        // "Bookable" checkbox in Settings → Room Statuses ever got checked (by accident or
+        // otherwise) — a room mid-stay can legitimately be sent for cleaning without ever having
+        // been checked out (see updateRoomCleaning's own comment on this), and forcing it back to
+        // "occupied" the instant this runs on every sync silently undid every "Cleaning" click
+        // reception made on an occupied room. Since this runs on every device's every data load,
+        // it looked exactly like the change never reached the cleaner at all, when really it
+        // reached them and was immediately reverted before they ever saw it.
+        if (r.currentGuest && r.status !== 'cleaning' && r.status !== 'checkout') {
             const statusCfg = (rawStatuses || []).find(s => s.id === r.status);
             if (statusCfg && statusCfg.bookable) return { ...r, status: 'occupied' };
         }
@@ -794,7 +802,7 @@ function switchPage(pageId, clickedEl) {
     if (pageId === 'outsideIncome') loadOutsideIncomePage();
     if (pageId === 'services') loadServicesPage();
     if (pageId === 'settings') loadSettingsPage();
-    if (pageId === 'cleanerStatus') loadCleanerPage();
+    if (pageId === 'cleanerStatus') loadCleanerPageFresh();
 
     // Close sidebar on phones only (tablet keeps it visible)
     if (window.innerWidth < 768) closeSidebar();
@@ -3109,7 +3117,9 @@ function updateReportFilterLabel() {
 // and checkout payments (which already include room charges + services collected at checkout) are
 // combined into one figure per channel — there's no separate "deposit" bucket, a deposit is just
 // income collected earlier in the stay.
-function updateReportsStats() {
+// Shared by the Reports page and the Dashboard date filter so both always agree on what a range
+// contains. Parameters keep the original names so the body below is unchanged; null = all time.
+function computeIncomeTotals(_reportDateFrom, _reportDateTo) {
     const inRange = d => { if (!_reportDateFrom) return true; if (!d) return false; const dt = new Date(d); return dt >= _reportDateFrom && dt <= _reportDateTo; };
 
     // Deposits (check-in + any mid-stay top-ups, already cumulative) count in the period they
@@ -3158,20 +3168,25 @@ function updateReportsStats() {
     const oiUSD     = oi.reduce((s, p) => s + (p.priceUSD     || 0), 0);
     const oiCardIQD = oi.reduce((s, p) => s + (p.priceCardIQD || 0), 0);
 
+    return { cashIQD, cashUSD, cardIQD, purchCashIQD, purchCardIQDExp, purchIQD, purchUSD, oiIQD, oiUSD, oiCardIQD };
+}
+
+function updateReportsStats() {
+    const t = computeIncomeTotals(_reportDateFrom, _reportDateTo);
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
     const occupancyRate = hotelData.rooms.length > 0 ? ((occupiedRooms / hotelData.rooms.length) * 100).toFixed(1) : 0;
 
-    document.getElementById('totalIncomeIQDReport').textContent = `IQD ${fmtIQD(cashIQD)}`;
-    document.getElementById('totalIncomeUSDReport').textContent = `$${fmtUSD(cashUSD)}`;
-    document.getElementById('totalIncomeCardIQDReport').textContent = `IQD ${fmtIQD(cardIQD)}`;
-    document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(purchIQD)}`;
-    document.getElementById('totalPurchasesUSDReport').textContent = `$${fmtUSD(purchUSD)}`;
-    document.getElementById('outsideIncomeIQDReport').textContent     = `IQD ${fmtIQD(oiIQD)}`;
-    document.getElementById('outsideIncomeUSDReport').textContent     = `$${fmtUSD(oiUSD)}`;
+    document.getElementById('totalIncomeIQDReport').textContent = `IQD ${fmtIQD(t.cashIQD)}`;
+    document.getElementById('totalIncomeUSDReport').textContent = `$${fmtUSD(t.cashUSD)}`;
+    document.getElementById('totalIncomeCardIQDReport').textContent = `IQD ${fmtIQD(t.cardIQD)}`;
+    document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(t.purchIQD)}`;
+    document.getElementById('totalPurchasesUSDReport').textContent = `$${fmtUSD(t.purchUSD)}`;
+    document.getElementById('outsideIncomeIQDReport').textContent     = `IQD ${fmtIQD(t.oiIQD)}`;
+    document.getElementById('outsideIncomeUSDReport').textContent     = `$${fmtUSD(t.oiUSD)}`;
     const oiCardEl = document.getElementById('outsideIncomeCardIQDReport');
-    if (oiCardEl) oiCardEl.textContent = `IQD ${fmtIQD(oiCardIQD)}`;
-    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(cashIQD + cardIQD + oiIQD + oiCardIQD - purchIQD)}`;
-    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(cashUSD + oiUSD - purchUSD)}`;
+    if (oiCardEl) oiCardEl.textContent = `IQD ${fmtIQD(t.oiCardIQD)}`;
+    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(t.cashIQD + t.cardIQD + t.oiIQD + t.oiCardIQD - t.purchIQD)}`;
+    document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(t.cashUSD + t.oiUSD - t.purchUSD)}`;
     document.getElementById('occupancyRateReport').textContent = `${occupancyRate}%`;
 
     populateRoomReportTable();
@@ -3376,6 +3391,51 @@ function calculateTotalIncomeByMethod() {
     return { cashIQD, cashUSD, cardIQD };
 }
 
+// Dashboard date filter — same From/To rule as the Reports page (computeIncomeTotals), so the two
+// show identical numbers for the same range. When no range is set the cards keep using the
+// Reset Counter baselines as before.
+let _dashDateFrom = null, _dashDateTo = null;
+
+function applyDashboardDateFilter() {
+    const fromV = document.getElementById('dashFilterFrom')?.value;
+    const toV   = document.getElementById('dashFilterTo')?.value;
+    if (!fromV || !toV) { showToast('Pick both a From and To date, then click "Show Range".', 'error'); return; }
+    const from = new Date(fromV + 'T00:00:00');
+    const to   = new Date(toV + 'T23:59:59');
+    if (from > to) { showToast('The "From" date must be before the "To" date.', 'error'); return; }
+    _dashDateFrom = from;
+    _dashDateTo   = to;
+    updateDashboardStats();
+}
+
+function clearDashboardDateFilter() {
+    _dashDateFrom = null;
+    _dashDateTo   = null;
+    ['dashFilterFrom', 'dashFilterTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const lbl = document.getElementById('dashFilterLabel');
+    if (lbl) lbl.textContent = 'Showing: All Time';
+    updateDashboardStats();
+}
+
+function applyDashboardRangeTotals() {
+    const t = computeIncomeTotals(_dashDateFrom, _dashDateTo);
+    const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    _set('dashCashIQDValue',       `IQD ${fmtIQD(t.cashIQD)}`);
+    _set('dashCashUSDValue',       `$${fmtUSD(t.cashUSD)}`);
+    _set('dashCardIQDValue',       `IQD ${fmtIQD(t.cardIQD)}`);
+    _set('dashOICashIQDValue',     `IQD ${fmtIQD(t.oiIQD)}`);
+    _set('dashOICashUSDValue',     `$${fmtUSD(t.oiUSD)}`);
+    _set('dashOICardIQDValue',     `IQD ${fmtIQD(t.oiCardIQD)}`);
+    _set('dashPurchCashIQDValue',  `IQD ${fmtIQD(t.purchCashIQD)}`);
+    _set('dashPurchUSDValue',      `$${fmtUSD(t.purchUSD)}`);
+    _set('dashPurchCardIQDValue',  `IQD ${fmtIQD(t.purchCardIQDExp)}`);
+    const label = `${_dashDateFrom.toLocaleDateString()} – ${_dashDateTo.toLocaleDateString()}`;
+    ['dashCashIQDSince', 'dashCashUSDSince', 'dashCardIQDSince',
+     'dashOICashIQDSince', 'dashOICashUSDSince', 'dashOICardIQDSince',
+     'dashPurchCashIQDSince', 'dashPurchUSDSince', 'dashPurchCardIQDSince'].forEach(id => _set(id, label));
+    _set('dashFilterLabel', `Showing: ${label}`);
+}
+
 function updateDashboardStats() {
     const availableRooms = hotelData.rooms.filter(r => r.status === 'available').length;
     const occupiedRooms = hotelData.rooms.filter(r => r.status === 'occupied').length;
@@ -3405,6 +3465,8 @@ function updateDashboardStats() {
     const fmt = d => new Date(d).toLocaleDateString();
     const lastOf = arr => arr.length ? arr[arr.length - 1] : null;
 
+    const dashFilterBar = document.getElementById('dashFilterBar');
+    if (dashFilterBar) dashFilterBar.style.display = isReception ? 'none' : '';
     if (isReception) {
         adminOnlyCardIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         if (cleaningCard) cleaningCard.style.display = '';
@@ -3468,6 +3530,7 @@ function updateDashboardStats() {
         const el_iUS = document.getElementById('dashCashUSDSince');  if (el_iUS)  el_iUS.textContent  = lastUSD  ? `Since ${fmt(lastUSD.resetAt)}`  : (oldLast ? `Since ${fmt(oldLast.resetAt)}` : 'All-time');
         const el_iCS = document.getElementById('dashCardIQDSince');  if (el_iCS)  el_iCS.textContent  = lastCard ? `Since ${fmt(lastCard.resetAt)}` : (oldLast ? `Since ${fmt(oldLast.resetAt)}` : 'All-time');
 
+        if (_dashDateFrom) applyDashboardRangeTotals();
         const checkoutCount = hotelData.rooms.filter(r => r.status === 'checkout').length;
         _set('checkoutRoomsCount', checkoutCount);
         if (dashCard5) dashCard5.style.display = '';
@@ -4806,7 +4869,7 @@ function showApp() {
         const ci = document.querySelector('.sidebar-item[data-roles="cleaner"]');
         if (ci) ci.classList.add('active');
         document.getElementById('pageTitle').textContent = t('cleaner_page_title');
-        loadCleanerPage();
+        loadCleanerPageFresh();
     } else if (role === 'reception') {
         const ci = document.getElementById('checkIn');
         if (ci) ci.style.display = 'block';
@@ -7175,19 +7238,24 @@ function refreshPage(pageId) {
         case 'reports':       loadReportsPage();   break;
         case 'purchases':     loadPurchasesPage(); break;
         case 'outsideIncome': loadOutsideIncomePage(); break;
-        case 'cleanerStatus': {
-            // The status filter dropdown (e.g. "Checkout" only) persists across renders so a
-            // person's own filtering choice survives their own clicks — but that means a change
-            // someone ELSE just made (e.g. marking a room "Cleaning") can land while this device
-            // has an old filter still set from earlier, silently hiding the very room that just
-            // changed instead of showing it. Reset the status filter back to "All Status" only on
-            // this externally-triggered refresh path, never on the person's own interactions.
-            const statusFilterEl = document.getElementById('cleanerStatusFilter');
-            if (statusFilterEl) statusFilterEl.value = 'all';
-            loadCleanerPage();
-            break;
-        }
+        case 'cleanerStatus': loadCleanerPageFresh(); break;
     }
+}
+
+// A "fresh look" at the Room Status page — logging in, clicking its sidebar link, or a live
+// update landing while it's already open — must never have a leftover status filter from earlier
+// (e.g. "Checkout" only) silently hiding a room someone just changed. Only the person's OWN
+// deliberate filter pick (the dropdown's own onchange) or their own action on this page
+// (updateRoomCleaning's post-click reload) should carry a filter forward; every other way of
+// arriving here resets it to "All Status" first. This was previously only applied to the
+// externally-triggered live-refresh path, which missed the far more common case of one person
+// logging out and a different person logging into the same browser tab/device right after —
+// the new login lands here (cleaner role) or the sidebar click lands here (any role) with the
+// PREVIOUS person's filter still selected, since logging out never reloads the page.
+function loadCleanerPageFresh() {
+    const statusFilterEl = document.getElementById('cleanerStatusFilter');
+    if (statusFilterEl) statusFilterEl.value = 'all';
+    loadCleanerPage();
 }
 
 function setupOnlineWatcher() {
