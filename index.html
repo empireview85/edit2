@@ -921,6 +921,25 @@
 
         <!-- Dashboard Page -->
         <div id="dashboard" class="page-content animate-fade-in">
+            <!-- Date filter (same From/To rule as the Reports page) -->
+            <div class="stat-card mb-6" id="dashFilterBar" style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
+                <span class="text-sm font-semibold text-gray-600" style="padding-bottom:8px;"><i class="fas fa-filter mr-1"></i>Show numbers for:</span>
+                <div style="display:flex;gap:6px;align-items:flex-end;">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">From</label>
+                        <input type="date" id="dashFilterFrom" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">To</label>
+                        <input type="date" id="dashFilterTo" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button onclick="applyDashboardDateFilter()" class="btn btn-primary btn-sm">Show Range</button>
+                </div>
+                <button onclick="clearDashboardDateFilter()" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-undo"></i> All Time
+                </button>
+                <span id="dashFilterLabel" class="text-xs font-semibold text-blue-600" style="padding-bottom:8px;">Showing: All Time</span>
+            </div>
             <!-- Stat Cards -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <!-- Room status group -->
