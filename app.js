@@ -11,7 +11,7 @@ window.addEventListener('unhandledrejection', e => {
 // Mirrors the CACHE version in sw.js — bump both together on every deploy. Shown on the login
 // screen and in the sidebar so it's possible to tell at a glance whether a browser is still
 // running an old cached copy of the app instead of guessing from symptoms.
-const APP_VERSION = 'v65';
+const APP_VERSION = 'v66';
 
 // ==================== STAGING MODE ====================
 // Open the app with ?staging=1 in the address bar to point every hotelData read/write at a
@@ -3179,14 +3179,25 @@ function updateReportsStats() {
     document.getElementById('totalIncomeIQDReport').textContent = `IQD ${fmtIQD(t.cashIQD)}`;
     document.getElementById('totalIncomeUSDReport').textContent = `$${fmtUSD(t.cashUSD)}`;
     document.getElementById('totalIncomeCardIQDReport').textContent = `IQD ${fmtIQD(t.cardIQD)}`;
-    document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(t.purchIQD)}`;
+    // Purchases shown per payment channel (cash IQD / cash $ / MasterCard IQD) — same split as
+    // Income and Outside Income already use — so each channel's own Net Revenue below only ever
+    // nets against expenses paid in that same channel, never a combined cash+MasterCard figure.
+    document.getElementById('totalPurchasesIQDReport').textContent = `IQD ${fmtIQD(t.purchCashIQD)}`;
     document.getElementById('totalPurchasesUSDReport').textContent = `$${fmtUSD(t.purchUSD)}`;
+    const purchCardEl = document.getElementById('totalPurchasesCardIQDReport');
+    if (purchCardEl) purchCardEl.textContent = `IQD ${fmtIQD(t.purchCardIQDExp)}`;
     document.getElementById('outsideIncomeIQDReport').textContent     = `IQD ${fmtIQD(t.oiIQD)}`;
     document.getElementById('outsideIncomeUSDReport').textContent     = `$${fmtUSD(t.oiUSD)}`;
     const oiCardEl = document.getElementById('outsideIncomeCardIQDReport');
     if (oiCardEl) oiCardEl.textContent = `IQD ${fmtIQD(t.oiCardIQD)}`;
-    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(t.cashIQD + t.cardIQD + t.oiIQD + t.oiCardIQD - t.purchIQD)}`;
+    // Net Revenue, one figure per channel: that channel's income + that channel's outside income
+    // − that channel's expenses. Previously the IQD figure blended cash and MasterCard together;
+    // now cash IQD and MasterCard IQD each get their own total, matching how Income/Outside
+    // Income/Purchases are already split above.
+    document.getElementById('netRevenueIQDReport').textContent = `IQD ${fmtIQD(t.cashIQD + t.oiIQD - t.purchCashIQD)}`;
     document.getElementById('netRevenueUSDReport').textContent = `$${fmtUSD(t.cashUSD + t.oiUSD - t.purchUSD)}`;
+    const netRevCardEl = document.getElementById('netRevenueCardIQDReport');
+    if (netRevCardEl) netRevCardEl.textContent = `IQD ${fmtIQD(t.cardIQD + t.oiCardIQD - t.purchCardIQDExp)}`;
     document.getElementById('occupancyRateReport').textContent = `${occupancyRate}%`;
 
     populateRoomReportTable();
