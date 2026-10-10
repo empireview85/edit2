@@ -1377,7 +1377,7 @@
 
             <!-- Row 1: Income — split strictly by how the money was actually collected (not by the
                  room's listed price currency), and already includes deposits combined with revenue. -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                 <div class="stat-card" style="border-left:4px solid #10b981;">
                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Total Income (Cash IQD)</p>
                     <h3 class="text-xl font-bold text-green-600 mt-1" id="totalIncomeIQDReport">IQD 0</h3>
@@ -1394,22 +1394,28 @@
                     <p class="text-xs text-gray-400 mt-1">rooms + services + deposits, paid by MasterCard</p>
                 </div>
                 <div class="stat-card" style="border-left:4px solid #ef4444;">
-                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Purchases (IQD)</p>
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Purchases (Cash IQD)</p>
                     <h3 class="text-xl font-bold text-red-500 mt-1" id="totalPurchasesIQDReport">IQD 0</h3>
-                    <p class="text-xs text-gray-400 mt-1">total expenses</p>
+                    <p class="text-xs text-gray-400 mt-1">total expenses, paid in cash IQD</p>
                 </div>
                 <div class="stat-card" style="border-left:4px solid #dc2626;">
                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Purchases ($)</p>
                     <h3 class="text-xl font-bold text-red-600 mt-1" id="totalPurchasesUSDReport">$0</h3>
-                    <p class="text-xs text-gray-400 mt-1">total expenses</p>
+                    <p class="text-xs text-gray-400 mt-1">total expenses, paid in cash $</p>
+                </div>
+                <div class="stat-card" style="border-left:4px solid #b91c1c;">
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Purchases (MasterCard IQD)</p>
+                    <h3 class="text-xl font-bold text-red-700 mt-1" id="totalPurchasesCardIQDReport">IQD 0</h3>
+                    <p class="text-xs text-gray-400 mt-1">total expenses, paid by MasterCard</p>
                 </div>
             </div>
             <!-- Row 2: stats -->
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                 <div class="stat-card" style="border-left:4px solid #667eea;background:linear-gradient(135deg,#f0f4ff,#fff);">
-                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Net Revenue (income − expenses)</p>
+                    <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide">Net Revenue (income + outside income − expenses)</p>
                     <h3 class="text-lg font-bold text-indigo-600 mt-1" id="netRevenueIQDReport">IQD 0</h3>
                     <h3 class="text-lg font-bold text-purple-600" id="netRevenueUSDReport">$0</h3>
+                    <h3 class="text-base font-bold text-blue-700 mt-1" id="netRevenueCardIQDReport"><i class="fas fa-credit-card" style="font-size:0.75rem;margin-right:4px;"></i>IQD 0</h3>
                 </div>
                 <div class="stat-card" style="border-left:4px solid #8b5cf6;">
                     <p class="text-gray-500 text-xs font-semibold uppercase tracking-wide" data-i18n="stat_occupancy">Occupancy Rate</p>
